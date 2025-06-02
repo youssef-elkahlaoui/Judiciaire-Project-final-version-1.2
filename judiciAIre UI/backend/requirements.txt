@@ -5,3 +5,4 @@ pymongo
 requests
 PyJWT
 clerk-backend-api
+unsloth
