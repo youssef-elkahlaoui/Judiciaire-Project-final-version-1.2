@@ -1,6 +1,6 @@
 # JudiciAIre - Moroccan Legal AI Assistant 🏛️⚖️
 
-JudiciAIre is an AI-powered legal assistant specialized in Moroccan law, particularly family law (Mudawana). The system provides accurate, clear, and helpful legal guidance based on Moroccan legal texts and regulations.
+[JudiciAIre](https://huggingface.co/youssefELK/judiciaireModwanaLa) is an AI-powered legal assistant specialized in Moroccan law, particularly family law (Mudawana). The system provides accurate, clear, and helpful legal guidance based on Moroccan legal texts and regulations.
 
 ![JudiciAIre Demo](demo/1.jpg)
 
@@ -119,11 +119,14 @@ Open your browser and navigate to `http://localhost:5173`
 
 ## 📱 Demo Screenshots
 
+### Authentication Page
+![Authentication](demo/clerck.jpg)
+
 ### Landing Page
 ![Landing Page](demo/1.jpg)
 
 ### Model thinking
-![Authentication](demo/2.jpg)
+![Model thinking](demo/2.jpg)
 
 ### Chat Interface
 ![Chat Interface](demo/3.jpg)
@@ -135,7 +138,7 @@ Open your browser and navigate to `http://localhost:5173`
 ![Conversation History](demo/5.jpg)
 
 ### Landing Page mobile version
-![Additional Features](demo/1_2.jpg)
+![Landing Page mobile version](demo/1_2.jpg)
 
 ## 🔧 Configuration
 
@@ -267,8 +270,8 @@ npm run build
 ## 👨‍💻 Authors
 
 - **Youssef Elkahlaoui** - *Initial work* - [GitHub Profile](https://github.com/youssef-elkahlaoui)
-- **Anass Essafi** - *Initial work* - [GitHub Profile](https://github.com)
-- **Ayoub Gorry** - *Initial work* - [GitHub Profile](https://github.com)
+- **Anass Essafi** - *Initial work* - [GitHub Profile](https://github.com/ESSAFI01)
+- **Ayoub Gorry** - *Initial work* - [GitHub Profile](https://github.com/ayoubgorry)
 
 ## 🙏 Acknowledgments
 
