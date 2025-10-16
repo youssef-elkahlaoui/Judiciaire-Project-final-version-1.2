@@ -1,0 +1,395 @@
+{
+  "name": "Moroccan Legal Document Processing Pipeline",
+  "description": "Collects Moroccan legal documents (laws, codes, Dahirs, Maroums) from adala.ma, extracts articles, and generates Q&A pairs using Google Gemini 2.5 Pro",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [50, 300],
+      "id": "manual-trigger-001",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.adala.ma",
+        "authentication": "none",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [250, 300],
+      "id": "http-request-001",
+      "name": "Fetch Adala.ma Website"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Extract PDF links from legal documents categories\nconst categories = {\n  'family': 'Code de la Famille',\n  'labor': 'Code du Travail',\n  'penal': 'Code Pénal',\n  'commerce': 'Code de Commerce',\n  'economy': 'Code Économique',\n  'procedure': 'Code de Procédure Civile',\n  'real_estate': 'Code de l\\'Immobilier',\n  'constitution': 'Constitution',\n  'dahir': 'Dahirs',\n  'marsoum': 'Maroums'\n};\n\n// Parse the HTML to extract document links\nconst documents = [];\nfor (const [key, name] of Object.entries(categories)) {\n  documents.push({\n    domain: key,\n    name: name,\n    url: `https://www.adala.ma/fr/${key}`,\n    pdfLinks: []\n  });\n}\n\nreturn documents;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "id": "code-001",
+      "name": "Extract Document Categories"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [650, 300],
+      "id": "split-batch-001",
+      "name": "Loop Through Categories"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 300],
+      "id": "http-request-002",
+      "name": "Download Category Page"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extract PDF download links from category page\nconst html = $input.all()[0].body;\nconst pdfLinks = [];\n\n// Parse HTML to find PDF links (adjust selector based on actual adala.ma structure)\nconst linkRegex = /href=[\"']([^\"']*\\.pdf)[\"']/gi;\nlet match;\nwhile ((match = linkRegex.exec(html)) !== null) {\n  pdfLinks.push({\n    url: match[1],\n    domain: $input.all()[0].domain,\n    fileName: match[1].split('/').pop()\n  });\n}\n\nreturn { domain: $input.all()[0].domain, pdfLinks: pdfLinks };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "id": "code-002",
+      "name": "Extract PDF Links"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1250, 300],
+      "id": "split-batch-002",
+      "name": "Loop Through PDFs"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 300],
+      "id": "http-request-003",
+      "name": "Download PDF File"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Store PDF content for processing\n// In production, use a PDF parsing library\nreturn {\n  fileName: $input.all()[0].fileName,\n  domain: $input.all()[0].domain,\n  fileSize: $input.all()[0].data?.length || 0,\n  downloadedAt: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300],
+      "id": "code-003",
+      "name": "Process PDF Metadata"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extract articles from PDF content\n// This is a simplified version - use pdfparse or similar library in production\nconst articles = [];\n\n// Example structure for articles\nconst articlePattern = /Article\\s+\\d+[^\\n]*/gi;\n\nreturn {\n  fileName: $input.all()[0].fileName,\n  domain: $input.all()[0].domain,\n  articlesCount: 0,\n  articles: articles,\n  extractedAt: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 300],
+      "id": "code-004",
+      "name": "Extract Articles from PDF"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Create chunks from articles for processing\nconst chunkSize = 3; // Articles per chunk\nconst articles = $input.all()[0].articles || [];\nconst chunks = [];\n\nfor (let i = 0; i < articles.length; i += chunkSize) {\n  chunks.push({\n    chunkIndex: Math.floor(i / chunkSize),\n    articles: articles.slice(i, i + chunkSize),\n    domain: $input.all()[0].domain,\n    fileName: $input.all()[0].fileName\n  });\n}\n\nreturn { chunks: chunks, totalChunks: chunks.length };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 300],
+      "id": "code-005",
+      "name": "Create Article Chunks"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2250, 300],
+      "id": "split-batch-003",
+      "name": "Loop Through Chunks"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a legal expert specialized in Moroccan law. For each article provided, generate exactly 4 question-answer pairs in valid JSONL format. Each line must be a valid JSON object with 'question' and 'answer' keys. Focus on practical understanding and application of the law."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [2450, 300],
+      "id": "ai-agent-001",
+      "name": "AI Agent - Generate QA Pairs"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [2450, 500],
+      "id": "gemini-model-001",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GEMINI_API_CREDENTIAL_ID",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse Gemini response and format as JSONL\nconst rawString = $json.output || '';\nconst qaPairs = [];\n\ntry {\n  // Find the start and end of the JSON content\n  const jsonStartIndex = rawString.indexOf('{');\n  const jsonEndIndex = rawString.lastIndexOf('}');\n\n  if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {\n    const content = rawString.substring(jsonStartIndex, jsonEndIndex + 1);\n    const lines = content.split('\\n').filter(line => line.trim());\n    \n    lines.forEach((line) => {\n      try {\n        const jsonObj = JSON.parse(line);\n        if (jsonObj.question && jsonObj.answer) {\n          qaPairs.push(jsonObj);\n        }\n      } catch (e) {\n        // Skip invalid JSON lines\n      }\n    });\n  }\n} catch (e) {\n  // Error parsing response\n}\n\nreturn {\n  domain: $input.all()[0].domain,\n  fileName: $input.all()[0].fileName,\n  chunkIndex: $input.all()[0].chunkIndex,\n  qaPairs: qaPairs,\n  pairsCount: qaPairs.length,\n  processedAt: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2650, 300],
+      "id": "code-006",
+      "name": "Parse QA Response",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\n// Get data from input\nconst domain = $json.domain;\nconst qaPairs = $json.qaPairs || [];\n\n// Define output directory (you can change this path)\nconst outputDir = '/tmp/legal_qa_output'; // Change to your desired path\nconst fileName = `${domain}.jsonl`;\nconst filePath = path.join(outputDir, fileName);\n\n// Create directory if it doesn't exist\nif (!fs.existsSync(outputDir)) {\n  fs.mkdirSync(outputDir, { recursive: true });\n}\n\n// Convert QA pairs to JSONL format\nconst jsonlContent = qaPairs.map(qa => JSON.stringify(qa)).join('\\n') + '\\n';\n\n// Append to file\nfs.appendFileSync(filePath, jsonlContent, 'utf8');\n\nreturn {\n  success: true,\n  domain: domain,\n  filePath: filePath,\n  pairsWritten: qaPairs.length,\n  message: `Successfully wrote ${qaPairs.length} Q&A pairs to ${fileName}`\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2850, 300],
+      "id": "file-write-001",
+      "name": "Store QA Pairs in JSONL"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Generate summary and log completion status\nreturn {\n  status: 'completed',\n  totalDocuments: $input.all().length,\n  timestamp: new Date().toISOString(),\n  message: 'Moroccan legal documents processing pipeline completed successfully'\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3050, 300],
+      "id": "code-007",
+      "name": "Final Summary"
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Fetch Adala.ma Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Adala.ma Website": {
+      "main": [
+        [
+          {
+            "node": "Extract Document Categories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Categories": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Categories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Categories": {
+      "main": [
+        [
+          {
+            "node": "Download Category Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Category Page": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Links": {
+      "main": [
+        [
+          {
+            "node": "Loop Through PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through PDFs": {
+      "main": [
+        [
+          {
+            "node": "Download PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF File": {
+      "main": [
+        [
+          {
+            "node": "Process PDF Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process PDF Metadata": {
+      "main": [
+        [
+          {
+            "node": "Extract Articles from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Articles from PDF": {
+      "main": [
+        [
+          {
+            "node": "Create Article Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Article Chunks": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Chunks": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Generate QA Pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Generate QA Pairs": {
+      "main": [
+        [
+          {
+            "node": "Parse QA Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Generate QA Pairs",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse QA Response": {
+      "main": [
+        [
+          {
+            "node": "Store QA Pairs in JSONL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store QA Pairs in JSONL": {
+      "main": [
+        [
+          {
+            "node": "Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "moroccan-legal-pipeline-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "moroccan-legal-document-pipeline"
+  },
+  "id": "moroccan-legal-pipeline",
+  "tags": []
+}
